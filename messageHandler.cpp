@@ -64,6 +64,7 @@ std::string messageHandler::getSendDataByMessage(const MessageData* data)
     root["caller_ip"] = data->callerIp;
     root["callee"] = data->calleeName;
     root["callee_ip"] = data->calleeIp;
+    root["calluuid"] = data->callUuid;
     if(data->type == RECORD_STOP)
     {
         const RecordMessageData* rData = static_cast<const RecordMessageData* >(data);

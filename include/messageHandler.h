@@ -20,6 +20,7 @@ enum MessageType
 struct MessageData
 {
    MessageType type;
+   std::string callUuid; //通话唯一id
    std::string callerName;
    std::string calleeName;
    std::string callerIp;

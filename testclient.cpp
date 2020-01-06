@@ -336,12 +336,14 @@ static void handle_receive_event(const esl_handle_t *handle)
 	string calleeName = root["Caller-Destination-Number"].asString();
 	string callerIp = root["Caller-Network-Addr"].asString();
 	string calleeIp = root["Other-Leg-Network-Addr"].asString();
+	string callUuid = root["variable_call_uuid"].asString();
     if(eventName == "CHANNEL_CREATE" )
 	{
         if(root["Caller-Direction"].asString() == "outbound")
 		    return;
 		MessageData* mData = new MessageData();
 		mData->type = CHANNEL_CREATE;
+		mData->callUuid = callUuid;
 		mData->callerName = callerName;
 		mData->callerIp = callerIp;
 		mData->calleeIp = calleeIp;
@@ -356,6 +358,7 @@ static void handle_receive_event(const esl_handle_t *handle)
 		    mData->type = CHANNEL_ANSWER;
 		else
 		    mData->type = CHANNEL_HANGUP;
+		mData->callUuid = callUuid;
 		mData->callerName = callerName;
 		mData->callerIp = callerIp;
 		mData->calleeIp = calleeIp;
@@ -390,6 +393,7 @@ static void handle_receive_event(const esl_handle_t *handle)
 		string recordStartTime = root["Caller-Channel-Bridged-Time"].asString();
 		double startTime = stod(recordStartTime);
 		RecordMessageData* mData = new RecordMessageData();
+		mData->callUuid = callUuid;
 		mData->callerName = callerName;
 		mData->callerIp = callerIp;
 		mData->calleeIp = calleeIp;
@@ -403,7 +407,7 @@ static void handle_receive_event(const esl_handle_t *handle)
 	}
 	else
 	{
-		// std::cout<<"unknown get "<<eventName<<"  event........."<<std::endl;
+		std::cout<<"unknown get "<<eventName<<"  event........."<<std::endl;
 	}
 }
 
