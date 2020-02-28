@@ -1,9 +1,12 @@
 #include <messageHandler.h>
 #include <iostream>
 #include "jsoncpp/json.h"
+#include "Util/logger.h"
 
 
 using namespace std;
+using namespace toolkit;
+
 
 messageHandler::messageHandler(const std::string& httpaddr)
     :_httpaddr(httpaddr),isRunning(false)
@@ -27,13 +30,11 @@ void messageHandler::runMessageHandleThread()
     isRunning = true;
     while(isRunning)
     {
-        std::cout<<"at wait............."<<std::endl;
         std::unique_lock<std::mutex> lck(_mtx);
         cv.wait(lck,[this](){ return messageList.size()>0|| !isRunning;});
         if(!isRunning)
             break;
         lck.unlock();
-        std::cout<<"at deal data...."<<std::endl;
         const MessageData* curData = NULL;
         {
             lock_guard<std::mutex> guard(_mtx);
@@ -44,11 +45,12 @@ void messageHandler::runMessageHandleThread()
         }
 
         string sendData = getSendDataByMessage(curData);
+        InfoL<<"send data content: "<<sendData;
 
         delete curData;
         sendHttpData(sendData);
     }
-    std::cout<<"out run thread......."<<std::endl;
+    InfoL<<"out run thread.......";
 }
 
 std::string messageHandler::getSendDataByMessage(const MessageData* data)
@@ -76,7 +78,6 @@ std::string messageHandler::getSendDataByMessage(const MessageData* data)
     }
 
     rtn = root.toStyledString();
-    std::cout<<"rtn: \n"<<rtn<<std::endl;
     return rtn;
 }
 
@@ -133,10 +134,10 @@ bool messageHandler::sendHttpData(const std::string & data)
     code = curl_easy_perform(curl);  
     if (code != CURLE_OK)  
     {  
-        std::cout<<"send http data failed..."<<code<<"\nrtn: "<<rtn<<std::endl;
+        WarnL<<"send http data failed..."<<code<<"\nrtn: ";
     }   
     else
-        std::cout<<"send http data success...rtn: "<<rtn<<std::endl;
+        InfoL<<"send http data success...rtn: "<<rtn;
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
     return code == CURLE_OK;
@@ -147,20 +148,20 @@ void messageHandler::release()
    if(isRunning)
    {
         isRunning = false;
-        std::unique_lock<std::mutex> lck(_mtx);
-        cv.notify_one();
+        {
+            std::unique_lock<std::mutex> lck(_mtx);
+            cv.notify_one();
+        }
         _thread.join();
    }
 }
 
 void messageHandler::feedMessage(const MessageData* message)
 {
-    std::cout<<"at feed......."<<std::endl;
     if(isRunning)
     {
         std::unique_lock<std::mutex> lck(_mtx);
         this->messageList.emplace(message);
         cv.notify_one();
     }
-    std::cout<<"out feed......."<<std::endl;
 }
