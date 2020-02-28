@@ -1,7 +1,8 @@
 project(fsEventController)
 cmake_minimum_required(VERSION 3.1.3)
 #使能c++11
-set(CMAKE_CXX_STANDARD 11)
+#set(CMAKE_CXX_STANDARD 11)
+add_compile_options(-std=c++11)
 
 
 include_directories(libs/esl/src/include)

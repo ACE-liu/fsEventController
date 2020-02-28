@@ -156,10 +156,10 @@ static int output_printf(const char *fmt, ...)
 static void plain_events(esl_handle_t *handle)
 {
 	char cmd_str[1024] = {0};	
-	snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_CREATE\n\n");
-	esl_send_recv(handle, cmd_str);
-	snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_ANSWER\n\n");
-	esl_send_recv(handle, cmd_str);
+	// snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_CREATE\n\n");
+	// esl_send_recv(handle, cmd_str);
+	// snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_ANSWER\n\n");
+	// esl_send_recv(handle, cmd_str);
 	// snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_HANGUP\n\n");
 	// esl_send_recv(handle, cmd_str);
 	// snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_HANGUP_COMPLETE\n\n");
@@ -172,10 +172,10 @@ static void plain_events(esl_handle_t *handle)
 	esl_send_recv(handle, cmd_str);
 	snprintf(cmd_str, sizeof(cmd_str), "event json RECORD_STOP\n\n");
 	esl_send_recv(handle, cmd_str);
-	snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_BRIDGE\n\n");
-	esl_send_recv(handle, cmd_str);
-	snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_UNBRIDGE\n\n");
-	esl_send_recv(handle, cmd_str);
+	// snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_BRIDGE\n\n");
+	// esl_send_recv(handle, cmd_str);
+	// snprintf(cmd_str, sizeof(cmd_str), "event json CHANNEL_UNBRIDGE\n\n");
+	// esl_send_recv(handle, cmd_str);
 
 }
 
