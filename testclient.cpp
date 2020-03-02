@@ -38,12 +38,22 @@ public:
                              "日志最多保存天数",/*该选项说明文字*/
                              nullptr);
 
+		string logPath = exeDir() + "log/";
+
+        (*_parser) << Option('d',/*该选项简称，如果是\x00则说明无简称*/
+                             "path",/*该选项全称,每个选项必须有全称；不得为null或空字符串*/
+                             Option::ArgRequired,/*该选项后面必须跟值*/
+                             logPath.c_str(),/*该选项默认值*/
+                             false,/*该选项是否必须赋值，如果没有默认值且为ArgRequired时用户必须提供该参数否则将抛异常*/
+                             "日志输出路径",/*该选项说明文字*/
+                             nullptr);
+
         (*_parser) << Option('a',/*该选项简称，如果是\x00则说明无简称*/
                              "host",/*该选项全称,每个选项必须有全称；不得为null或空字符串*/
                              Option::ArgRequired,/*该选项后面必须跟值*/
                              "127.0.0.1",/*该选项默认值*/
                              false,/*该选项是否必须赋值，如果没有默认值且为ArgRequired时用户必须提供该参数否则将抛异常*/
-                             "配置文件路径",/*该选项说明文字*/
+                             "ip地址",/*该选项说明文字*/
                              nullptr);
 
         (*_parser) << Option('p',/*该选项简称，如果是\x00则说明无简称*/
@@ -51,7 +61,7 @@ public:
                              Option::ArgRequired,/*该选项后面必须跟值*/
                              "8011",/*该选项默认值*/
                              false,/*该选项是否必须赋值，如果没有默认值且为ArgRequired时用户必须提供该参数否则将抛异常*/
-                             "配置文件路径",/*该选项说明文字*/
+                             "端口",/*该选项说明文字*/
                              nullptr);
 
         (*_parser) << Option('w',/*该选项简称，如果是\x00则说明无简称*/
@@ -59,14 +69,14 @@ public:
                              Option::ArgRequired,/*该选项后面必须跟值*/
                              "Liu8440",/*该选项默认值*/
                              false,/*该选项是否必须赋值，如果没有默认值且为ArgRequired时用户必须提供该参数否则将抛异常*/
-                             "配置文件路径",/*该选项说明文字*/
+                             "密码",/*该选项说明文字*/
                              nullptr);
         (*_parser) << Option('u',/*该选项简称，如果是\x00则说明无简称*/
                              "httpaddr",/*该选项全称,每个选项必须有全称；不得为null或空字符串*/
                              Option::ArgRequired,/*该选项后面必须跟值*/
                              "http://127.0.0.1:8002/index/hook/on_sip_bill",/*该选项默认值*/
                              false,/*该选项是否必须赋值，如果没有默认值且为ArgRequired时用户必须提供该参数否则将抛异常*/
-                             "配置文件路径",/*该选项说明文字*/
+                             "上传url地址",/*该选项说明文字*/
                              nullptr);
     }
 
@@ -174,7 +184,6 @@ static int running = 1;
 static int thread_running = 0, thread_up = 0, check_up = 0;
 static esl_mutex_t * pmutex =NULL;
 static char switchname[256] = "";
-static char prompt_str[1024] = "";
 
 static char *filter_uuid;
 static char *logfilter;
@@ -216,7 +225,7 @@ static void handle_receive_event(const esl_handle_t *handle)
 	Json::Value root;
 	Json::Reader reader;
 	if(!reader.parse(revBody, root)){
-		std::cout <<"parse failed ............===============liuliu";
+		WarnL <<"parse failed ............";
 		return;
 	}
     std::string eventName = root["Event-Name"].asString();
@@ -256,7 +265,7 @@ static void handle_receive_event(const esl_handle_t *handle)
 	}
 	else if(eventName =="RECORD_STOP")
 	{
-		std::cout<<"get "<<eventName<<"  event........."<<std::endl;
+		InfoL<<"get "<<eventName<<"  event........."<<std::endl;
 		string filePath = root["Record-File-Path"].asString();
 		string fileName = filePath;
 		string::size_type index;
@@ -272,7 +281,7 @@ static void handle_receive_event(const esl_handle_t *handle)
 		uint32_t recordMs = stoi(recordMsStr);
 		if(recordMs == 0)
 		{
-			std::cout<<"record file is empty!"<<std::endl;
+			WarnL<<"record file is empty!";
 			return;
 		}
 
@@ -296,7 +305,7 @@ static void handle_receive_event(const esl_handle_t *handle)
 	}
 	else
 	{
-		std::cout<<"unknown get "<<eventName<<"  event........."<<std::endl;
+		InfoL<<"unknown get "<<eventName<<"  event.........";
 	}
 }
 
@@ -323,7 +332,6 @@ static void *msg_thread_run(esl_thread_t *me, void *obj)
 		} else if (status == ESL_SUCCESS) {
 
 			// const char *type = esl_event_get_header(handle->last_event, "content-type");
-			// std::cout<<"status ok for event... "<<type<<std::endl;
 
 
 			if (handle->last_event) {
@@ -331,7 +339,7 @@ static void *msg_thread_run(esl_thread_t *me, void *obj)
 		}
 		else
 		{
-			std::cout<<"status ok for event... =======else"<<std::endl;
+			InfoL<<"status ok for event... "<<std::endl;
 		}
 		
 	}
@@ -370,20 +378,22 @@ int main(int argc, char *argv[])
 	int port = cmd_main["port"].as<int>();
 	string pwd = cmd_main["password"];
 	string httpaddr = cmd_main["httpaddr"];
+	string logPath = cmd_main["path"];
+
 	esl_mutex_create(&pmutex);
 
 
 	
 	Logger::Instance().add(std::shared_ptr<ConsoleChannel>(new ConsoleChannel()));
 
-	auto fileChannel = std::make_shared<FileChannel>("FileChannel", exeDir() + "log/", logLevel);
+	auto fileChannel = std::make_shared<FileChannel>("FileChannel", logPath, logLevel);
 	//日志最多保存天数
 	fileChannel->setMaxDay(cmd_main["max_day"]);
 	Logger::Instance().add(fileChannel);
 
 	Logger::Instance().setWriter(std::shared_ptr<LogWriter>(new AsyncLogWriter()));
     
-	InfoL<<host<<" \t"<<port <<" \t"<<pwd<<"\t"<<httpaddr<<std::endl;
+	InfoL<<host<<" \t"<<port <<" \t"<<pwd<<"\t"<<httpaddr<<"\t"<<logPath<<std::endl;
 	connected = false;
 	while (--loops > 0) {
 		memset(&handle, 0, sizeof(handle));
@@ -399,7 +409,10 @@ int main(int argc, char *argv[])
 		}
 	}
 	if(!connected)
-         return -1;
+	{
+		ErrorL<<"连接freeswitch失败，退出...........";
+		return -1;
+	}
 	
 	msgHandler.reset(new messageHandler(httpaddr));
 	msgHandler->startSendingThread();
@@ -417,12 +430,11 @@ int main(int argc, char *argv[])
 	esl_send_recv(&handle, cmd_str);
 	if (handle.last_sr_event && handle.last_sr_event->body) {
 		esl_set_string(switchname, handle.last_sr_event->body);
-		std::cout<<"get switch name: "<<switchname<<std::endl;
+		InfoL<<"get switch name: "<<switchname<<std::endl;
 	} else {
 		esl_set_string(switchname, "default");
 	}
 
-	snprintf(prompt_str, sizeof(prompt_str), "freeswitch@%s> ", switchname);
 
 
 	
@@ -443,7 +455,6 @@ int main(int argc, char *argv[])
 		sem.post();
 	});// 设置退出信号
 	sem.wait();
-    std::cout<<"at quit=================="<<std::endl;
 	thread_running = 0;
 
 	do {
@@ -455,7 +466,5 @@ int main(int argc, char *argv[])
 	} while (check_up > 0);
 	esl_disconnect(&handle);
 	esl_mutex_destroy(&pmutex);
-
-	InfoL<<"quit liu.......";
 	return 0;
 }
