@@ -38,7 +38,7 @@ target_link_libraries(esl pthread)
 add_library(json STATIC ${jsonsrcs})
 
 
-add_executable(fsEventController testclient.cpp messageHandler.cpp)
+add_executable(fsEventController fsEventServer.cpp messageHandler.cpp)
 target_link_libraries(fsEventController  zltoolkit esl pthread json curl ssl crypto z)
 # target_link_libraries(fsEventController esl pthread libcurl.a ssl crypto z)
 

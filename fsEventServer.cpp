@@ -180,7 +180,6 @@ public:
 // 	"ALL"
 // };
 
-static int running = 1;
 static int thread_running = 0, thread_up = 0, check_up = 0;
 static esl_mutex_t * pmutex =NULL;
 static char switchname[256] = "";
@@ -188,6 +187,11 @@ static char switchname[256] = "";
 static char *filter_uuid;
 static char *logfilter;
 messageHandler::Ptr msgHandler = nullptr;
+static string host;
+static int port;
+static string pwd;
+static string httpaddr;
+static string logPath;
 
 
 static void plain_events(esl_handle_t *handle)
@@ -216,7 +220,28 @@ static void plain_events(esl_handle_t *handle)
 
 }
 
+static void send_connect_cmd(esl_handle_t *handle)
+{
+	char cmd_str[128] ={0};
+	esl_send_recv(handle, "api status\n\n");
 
+	if (handle->last_sr_event && handle->last_sr_event->body) {
+		printf("%s\n", handle->last_sr_event->body);
+	} else {
+		// this is unlikely to happen with api or bgapi (which is hardcoded above) but prefix but may be true for other commands
+		printf("%s\n", handle->last_sr_reply);
+	}
+
+	snprintf(cmd_str, sizeof(cmd_str), "api switchname\n\n");
+	esl_send_recv(handle, cmd_str);
+	if (handle->last_sr_event && handle->last_sr_event->body) {
+		esl_set_string(switchname, handle->last_sr_event->body);
+		InfoL<<"get switch name: "<<switchname<<std::endl;
+	} else {
+		esl_set_string(switchname, "default");
+	}
+	plain_events(handle);
+}
 
 static void handle_receive_event(const esl_handle_t *handle)
 {
@@ -317,50 +342,55 @@ static void *msg_thread_run(esl_thread_t *me, void *obj)
 	esl_mutex_lock(pmutex);
 	thread_up = 1;
 	esl_mutex_unlock(pmutex);
-	while(thread_running && handle->connected) {
+	while(thread_running) {
 		int aok = 1;
 		esl_status_t status;
-		esl_mutex_lock(pmutex);
-		status = esl_recv_event_timed(handle, 10, 1, NULL);
-		esl_mutex_unlock(pmutex);
-		
-		if (status == ESL_BREAK) {
-			usleep(1000);
-		} else if (status == ESL_FAIL) {
-			esl_log(ESL_LOG_WARNING, "Disconnected.\n");
-			running = -1; thread_running = 0;
-		} else if (status == ESL_SUCCESS) {
+		if(handle->connected)
+		{
+			esl_mutex_lock(pmutex);
+			status = esl_recv_event_timed(handle, 10, 1, NULL);
+			esl_mutex_unlock(pmutex);
+			
+			if (status == ESL_BREAK) {
+				usleep(1000);
+			} else if (status == ESL_FAIL) {
+				esl_log(ESL_LOG_WARNING, "Disconnected.\n");
+				WarnL<<"esl Disconnected... ";
+			} else if (status == ESL_SUCCESS) {
 
-			// const char *type = esl_event_get_header(handle->last_event, "content-type");
-
-
-			if (handle->last_event) {
-				handle_receive_event(handle);
+				// const char *type = esl_event_get_header(handle->last_event, "content-type");
+				if (handle->last_event) 
+					handle_receive_event(handle);
+			}
+			else
+			{
+				InfoL<<"status ok for event... "<<std::endl;
+			}
 		}
 		else
 		{
-			InfoL<<"status ok for event... "<<std::endl;
+		if (esl_connect(handle, host.c_str(), port, NULL, pwd.c_str())!= ESL_SUCCESS) {
+			ErrorL<<"esl can not connect to freeswitch.....";
+			usleep(1000000);
+		} else {
+			InfoL<<"esl connect to freeswitch success...";
+			send_connect_cmd(handle);
 		}
-		
 	}
 	}
-
 	InfoL<<"exit msg_thread_run...";
-
 	esl_mutex_lock(pmutex);  
 	thread_up = 0;
 	esl_mutex_unlock(pmutex);  
-	thread_running = 0;
 	esl_log(ESL_LOG_DEBUG, "Thread Done\n");
 	return NULL;
 }
+
 
 int main(int argc, char *argv[])
 {
 	esl_handle_t handle = {{0}};
 	int count = 0;
-	char cmd_str[2048] = {0};
-	bool connected = false;
 	int loops =2;
 	const char *line = NULL;
 
@@ -374,11 +404,11 @@ int main(int argc, char *argv[])
 	}
     
 	LogLevel logLevel = (LogLevel) cmd_main["level"].as<int>();
-	string host = cmd_main["host"];
-	int port = cmd_main["port"].as<int>();
-	string pwd = cmd_main["password"];
-	string httpaddr = cmd_main["httpaddr"];
-	string logPath = cmd_main["path"];
+	host = cmd_main["host"];
+	port = cmd_main["port"].as<int>();
+	pwd = cmd_main["password"];
+	httpaddr = cmd_main["httpaddr"];
+	logPath = cmd_main["path"];
 
 	esl_mutex_create(&pmutex);
 
@@ -393,65 +423,22 @@ int main(int argc, char *argv[])
 
 	Logger::Instance().setWriter(std::shared_ptr<LogWriter>(new AsyncLogWriter()));
     
-	InfoL<<host<<" \t"<<port <<" \t"<<pwd<<"\t"<<httpaddr<<"\t"<<logPath<<std::endl;
-	connected = false;
-	while (--loops > 0) {
-		memset(&handle, 0, sizeof(handle));
-		if (esl_connect(&handle, host.c_str(), port, NULL, pwd.c_str())!= ESL_SUCCESS) {
-			esl_global_set_default_logger(7);
-			esl_log(ESL_LOG_ERROR, "Error Connecting [%s]\n", handle.err);
-
-			sleep(1);
-			esl_log(ESL_LOG_INFO, "Retrying\n");
-		} else {
-			connected = true;
-			break;
-		}
-	}
-	if(!connected)
-	{
-		ErrorL<<"连接freeswitch失败，退出...........";
-		return -1;
-	}
+	// InfoL<<host<<" \t"<<port <<" \t"<<pwd<<"\t"<<httpaddr<<"\t"<<logPath<<std::endl;
 	
 	msgHandler.reset(new messageHandler(httpaddr));
 	msgHandler->startSendingThread();
-
-	esl_send_recv(&handle, "api status\n\n");
-
-	if (handle.last_sr_event && handle.last_sr_event->body) {
-		printf("%s\n", handle.last_sr_event->body);
-	} else {
-		// this is unlikely to happen with api or bgapi (which is hardcoded above) but prefix but may be true for other commands
-		printf("%s\n", handle.last_sr_reply);
-	}
-
-	snprintf(cmd_str, sizeof(cmd_str), "api switchname\n\n");
-	esl_send_recv(&handle, cmd_str);
-	if (handle.last_sr_event && handle.last_sr_event->body) {
-		esl_set_string(switchname, handle.last_sr_event->body);
-		InfoL<<"get switch name: "<<switchname<<std::endl;
-	} else {
-		esl_set_string(switchname, "default");
-	}
-
-
-
-	
-
 	if (esl_thread_create_detached(msg_thread_run, &handle) != ESL_SUCCESS) {
 		printf("Error starting thread!\n");
 		esl_disconnect(&handle);
 		return 0;
 	}
     
-	plain_events(&handle);
 
 	//设置退出信号处理函数
 	static semaphore sem;
 	signal(SIGINT, [](int) {
 		InfoL << "SIGINT:exit";
-		signal(SIGINT, SIG_IGN);// 设置退出信号
+		signal(SIGINT, SIG_IGN);  //设置退出信号
 		sem.post();
 	});// 设置退出信号
 	sem.wait();
@@ -466,5 +453,6 @@ int main(int argc, char *argv[])
 	} while (check_up > 0);
 	esl_disconnect(&handle);
 	esl_mutex_destroy(&pmutex);
+	InfoL<<"程序退出....";
 	return 0;
 }
